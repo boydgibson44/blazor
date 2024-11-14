@@ -1,0 +1,19 @@
+﻿@page "/"
+@inject NavigationManager Navigation
+
+<PageTitle>Home</PageTitle>
+
+<h1>Hello, world!</h1>
+
+<MudPaper Class="p-4">
+    <MudText Typo="Typo.h6">Navigate to Different Stages</MudText>
+    <MudStack Spacing="2" Direction="Row">
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" Href="/stagedemo" Size="Size.Small">
+            Main
+        </MudButton>
+
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" Href="/stagedemo/stage2" Size="Size.Small">
+            Edit
+        </MudButton>
+    </MudStack>
+</MudPaper>

@@ -1,0 +1,102 @@
+﻿@page "/stagedemo"
+@page "/stagedemo/{Stage}"
+@inject NavigationManager navManager
+
+<h3>Stage Demo</h3>
+
+<MudStepper Linear="false" ActiveIndex="@_activeIndex" Elevation="1" Color="Color.Primary" DisableButtons="true" DisableAll>
+    @if (Stage?.ToLower() == "stage1" || Stage == null) // Default to Stage 1 if no stage specified
+    {
+        <MudStep Icon="@Icons.Material.Filled.Info" Title="Stage 1: General Info" HideButtons="true">
+            <ChildContent>
+                <MudText>Content for Stage 1: General Information</MudText>
+            </ChildContent>
+        </MudStep>
+    }
+    else if (Stage?.ToLower() == "stage2")
+    {
+        <MudStep Icon="@Icons.Material.Filled.Edit" Title="Stage 2: Edit Stage" HideButtons="true">
+            <ChildContent>
+                <MudText>Content for Stage 2: Editing Details</MudText>
+            </ChildContent>
+        </MudStep>
+    }
+
+    else if (Stage?.ToLower() == "stage3")
+    {
+        <MudStep Icon="@Icons.Material.Filled.QuestionAnswer" Title="Stage 3: Review Questions" HideButtons="true">
+            <ChildContent>
+                <MudText>Content for Stage 3: Questions & Answers</MudText>
+            </ChildContent>
+        </MudStep>
+    }
+    else if (Stage?.ToLower() == "stage4")
+    {
+        <MudStep Icon="@Icons.Material.Filled.Check" Title="Stage 4: Confirmation" HideButtons="true">
+            <ChildContent>
+                <MudText>Content for Stage 4: Final Confirmation</MudText>
+            </ChildContent>
+        </MudStep>
+    }
+    else
+    {
+        <MudText>Unknown Stage</MudText>
+    }
+</MudStepper>
+
+<!-- Navigation Buttons -->
+<MudStack Spacing="2" Direction="Row" Class="mt-4">
+    <MudButton Color="Color.Primary" Variant="Variant.Filled" @onclick="NavigateToHome">Back to Home</MudButton>
+    <MudButton Color="Color.Secondary" Variant="Variant.Outlined" @onclick="GoToPreviousStage">Previous Stage</MudButton>
+    <MudButton Color="Color.Secondary" Variant="Variant.Outlined" @onclick="GoToNextStage">Next Stage</MudButton>
+</MudStack>
+
+@code {
+    [Parameter]
+    public string? Stage { get; set; }
+
+    private int _activeIndex = 0;
+
+    private static readonly Dictionary<string, int> StageMappings = new()
+    {
+        { "stage1", 0 }, { "stage2", 1 }, { "stage3", 2 }, { "stage4", 3 }
+    };
+
+    protected override void OnParametersSet()
+    {
+        SetActiveIndex();
+    }
+
+    private void SetActiveIndex()
+    {
+        // Set _activeIndex based on the current Stage parameter
+        if (StageMappings.TryGetValue(Stage?.ToLower() ?? string.Empty, out var index))
+        {
+            _activeIndex = index;
+        }
+        else
+        {
+            _activeIndex = 0; // Default to the first stage if not found
+        }
+    }
+
+    private void NavigateToHome() => navManager.NavigateTo("/");
+
+    private void GoToNextStage()
+    {
+        var nextStage = _activeIndex < StageMappings.Count - 1
+            ? StageMappings.ElementAt(_activeIndex + 1).Key
+            : StageMappings.ElementAt(_activeIndex).Key;
+
+        navManager.NavigateTo($"/stagedemo/{nextStage}");
+    }
+
+    private void GoToPreviousStage()
+    {
+        var previousStage = _activeIndex > 0
+            ? StageMappings.ElementAt(_activeIndex - 1).Key
+            : StageMappings.ElementAt(_activeIndex).Key;
+
+        navManager.NavigateTo($"/stagedemo/{previousStage}");
+    }
+}
