@@ -1,0 +1,544 @@
+﻿@page "/createtender"
+@page "/createtender/{CollectionId}"
+@page "/createtender/{CollectionId}/{stage}"
+@rendermode InteractiveServer
+
+@using ClairvyntAspireApp.Web.Apis
+@using FirebordShared.ViewModel
+@using FirebordShared.ViewModel.Collections
+@using MudBlazor.Extensions
+@using MudExtensions
+@using MudExtensions.Utilities
+@using FireboardAlpha.State
+
+@inject ISnackbar Snackbar
+@inject NavigationManager navManager
+@inject StateService StateService
+@inject ApiClient Api
+@implements IDisposable
+
+<MudContainer Fixed="true" Class="mt-16">
+    @if (Loaded)
+    {
+        <MudStepperExtended @ref="_stepper" Class="mud-width-full" ContentStyle="height: calc(100vh - 400px)" Linear="_linear" Vertical="_vertical" Color="_color" Variant="_variant"
+        Animation="_animation" ShowPreviousButton="_showPreviousButton" ShowNextButton="_showNextButton"
+        ShowSkipButton="_showSkipButton" ShowStepResultIndicator="_showStepResultIndicator" HeaderBadgeView="_headerBadgeView"
+        HeaderTextView="_headerTextView" PreventStepChangeAsync="new Func<StepChangeDirection, int, Task<bool>>(CheckChange)" LocalizedStrings="GetLocalizedStrings()"
+        MobileView="_mobileView" IconActionButtons="_iconActionButtons" Loading="_loading" HeaderSize="_headerSize"
+        StepperActionsJustify="_stepperActionsJustify">
+            <StaticContent>
+                @if (_showStaticContent)
+                {
+                    <MudStack Row="true" AlignItems="AlignItems.Center">
+                        <MudAvatar Color="_color">ST</MudAvatar>
+                        <MudText>
+                            This is a static content which shows with each step. We will set this as a variable that can change with each step...
+                        </MudText>
+                    </MudStack>
+                }
+            </StaticContent>
+            <ChildContent>
+                <MudStepExtended Icon="@Icons.Material.Filled.Start" Title="Tender Info" StatusChanged="UpdateCollection">
+                    <ChildContent>
+                        <MudSplitter EnableSlide="false" Bordered="false" Dimension="50">
+                            <StartContent>
+                                <MudForm @ref="form" @bind-IsValid="@success" @bind-Errors="@errors" Style="width:100%">
+                                    @* <MudForm @ref="_form"> *@
+                                    @* <MudStack Fu> *@
+                                    <MudPaper Width="100%">
+                                        <MudTextField Variant="Variant.Outlined" FullWidth Label="Name of Tender" Placeholder="e.g., SSE Tender" @bind-Value="@_collectionViewModel.Name" onfocus="@(() => ShowHelp("name"))" Required="true" RequiredError=" A Name is required" />
+                                        @* <MudButton Variant="Variant.Outlined" OnClick="@(() => ShowHelp("name"))">Help</MudButton> *@
+
+                                        <MudTextField T="string" Variant="Variant.Outlined" Lines="20" FullWidth Label="Tender Instructions" Counter="4000"  Immediate="true" Validation="@(new Func<string, IEnumerable<string>>(MaxCharacters))"  Placeholder="This is a 1 billion dollar bid for engineering stuff" @bind-Value="@_collectionViewModel.Detail" onfocus="@(() => ShowHelp("instructions"))" />
+                                        @* <MudIcon Icon="@Icons.Material.Filled.Help" Variant="Variant.Outlined" onclick="@(() => ShowHelp("instructions"))" />
+                                </MudTextField> *@
+
+                                        @if (CollectionType == "COLLECTION")
+                                        {
+                                            @*                         <MudSelect T="string" Label="Data Source" @bind-Value="DataSource">
+                                <MudSelectItem Value="ims-pdms-docnumber">IMS</MudSelectItem>
+                                <MudSelectItem Value="engineering-pdms">Engineering</MudSelectItem>
+                                <MudSelectItem Value="tender">Tendering</MudSelectItem>
+                                </MudSelect> *@
+                                        }
+                                    </MudPaper>
+                                    @* </MudStack> *@
+                                    @* </MudForm> *@
+                                </MudForm>
+                            </StartContent>
+                            <EndContent>
+                                <div>
+                                    @CurrentHelpText
+                                </div>
+                            </EndContent>
+                        </MudSplitter>
+                    </ChildContent>
+                </MudStepExtended>
+                <MudStepExtended Title="Sections & Questions" Icon="@Icons.Material.Filled.QuestionAnswer" Optional="false" Style="height: calc(100vh - 450px)">
+                    <ChildContent>
+                        @if (CollectionId != null)
+                        {
+                            <CollectionQuestionPanel CollectionId="@CollectionId" CollectionItemId="@CollectionItemId" />
+                        }
+                        else
+                        {
+                            <MudText>CollectionId should be created by now...</MudText>
+                        }
+                    </ChildContent>
+                </MudStepExtended>
+                <MudStepExtended Icon="@Icons.Material.Filled.AirplaneTicket" Title="FlightPlan" Style="height: calc(100vh - 450px)">
+                    <ChildContent>
+                        @if (_stepper?.GetActiveIndex() == 2)
+                        {
+                            <FlightPlanViewPanel CollectionId="@CollectionId" AutoCreate="true" />
+                        }
+                        <!-- run flight plan step goes here -->
+                    </ChildContent>
+                </MudStepExtended>
+
+                <MudStepExtended Icon="@Icons.Material.Filled.AirplanemodeActive" Title="Take-Off" Optional="false" Style="height: calc(100vh - 450px)">
+                    <ChildContent>
+                        <FlightPlanViewPanel @ref="ExecuteStage" CollectionId="@CollectionId" />
+                        <!-- run flight plan step goes here -->
+                    </ChildContent>
+                </MudStepExtended>
+                @if (_addResultStep)
+                {
+                    <MudStepExtended Icon="@Icons.Material.Filled.Alarm" Title="Result Step" IsResultStep="true">
+                        <ChildContent>
+                            <div class="d-flex flex-column align-center justify-center" style="height: 200px">
+                                <MudIconButton Icon="@Icons.Material.Filled.DoneAll" Size="Size.Large" Variant="Variant.Filled" Color="Color.Success" />
+                                <MudText>Your reservation successfully completed.</MudText>
+                            </div>
+                        </ChildContent>
+                    </MudStepExtended>
+                }
+            </ChildContent>
+            <ActionContent>
+                @if (!_stepper.IsAllStepsCompleted() && _showCustomButton)
+                {
+                    <MudButton Color="Color.Secondary" Variant="_variant" OnClick="@(() => Snackbar.Add("Custom cancel button clicked.", Severity.Info))">Cancel</MudButton>
+                }
+                @* <MudSpacer /> *@
+            </ActionContent>
+        </MudStepperExtended>
+    }
+    else
+    {
+        <MudProgressCircular Indeterminate />
+    }
+</MudContainer>
+
+@code {
+    private IEnumerable<string> MaxCharacters(string ch)
+    {
+        if (!string.IsNullOrEmpty(ch) && 4000 < ch?.Length)
+            yield return "Max 4000 characters";
+    }
+    MudForm form;
+    bool success;
+    string[] errors = { };
+    FlightPlanViewPanel ExecuteStage = null;
+    MudStepperExtended? _stepper = new();
+    MudForm? _form = new();
+    MudForm? _form2 = new();
+    bool _checkValidationBeforeComplete = false;
+    bool _linear = true;
+    bool _mobileView;
+    bool _iconActionButtons;
+    Variant _variant = Variant.Filled;
+    HeaderBadgeView _headerBadgeView = HeaderBadgeView.All;
+    HeaderTextView _headerTextView = HeaderTextView.All;
+    bool _animation = true;
+    bool _showPreviousButton = true;
+    bool _showNextButton = true;
+    bool _showSkipButton = false;
+    bool _showStepResultIndicator = true;
+    bool _addResultStep = false;
+    bool _customLocalization = false;
+    Color _color = Color.Primary;
+    int _activeIndex = 0;
+    bool _loading;
+    bool _showStaticContent = false;
+    bool _showCustomButton = false;
+    bool _vertical = false;
+    Size _headerSize = Size.Medium;
+    StepperActionsJustify _stepperActionsJustify = StepperActionsJustify.SpaceBetween;
+
+    [Parameter]
+    public string CollectionId { get; set; }
+
+    [Parameter]
+    public string CollectionItemId { get; set; }
+
+    [Parameter]
+    public string Name { get; set; }
+
+    [Parameter]
+    public string Instructions { get; set; }
+
+    [Parameter]
+    public string DataSource { get; set; }
+
+    [Parameter]
+    public string CollectionType { get; set; } = "COLLECTION";
+
+    // New parameter to handle the stage
+    [Parameter]
+    public string? Stage { get; set; }
+    private bool _isActiveIndexSet = false;
+    private bool Loaded = false;
+    private CollectionViewModel _collectionViewModel { get; set; } = new CollectionViewModel();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadCollection();
+        navManager.LocationChanged += HandleLocationChanged;
+        StateService.OnStateChange += StateHasChanged;
+    }
+
+    //load the data
+    protected async Task LoadCollection()
+    {
+        if (CollectionId != null && _collectionViewModel.Id == null)
+        {
+            // TODO: fix this once we have a working API endpoint
+            try
+            {
+                CollectionViewModel collectionViewModel = await Api.GetCollectionById(CollectionId);
+                if (collectionViewModel != null)
+                {
+                    _collectionViewModel = collectionViewModel;
+                }
+                else
+                {
+                    // error: something went wrong with the API call
+                    // toast error message should be displayed to the user
+                    Snackbar.Add($"Error Retrieving Collection", Severity.Error);
+                }
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Error Retrieving Collection", Severity.Error);
+            }
+        }
+        else
+        {
+            _collectionViewModel = new CollectionViewModel();
+        }
+        StateHasChanged();
+    }
+
+
+
+
+
+
+    protected override void OnParametersSet()
+    {
+        Snackbar.Add($"Stage parameter: {Stage}", Severity.Info);
+
+        // Determine initial step based on the stage parameter
+        _activeIndex = Stage switch
+        {
+            "stage1" => 0,
+            "stage2" => 1,
+            "stage3" => 2,
+            "stage4" => 3,
+            _ => 0 // Default to step 0 if stage is not provided
+        };
+
+        Snackbar.Add($"_activeIndex set to: {_activeIndex}", Severity.Info);
+
+        // Check if the query string contains `collectionItemId`
+        var uri = new Uri(navManager.Uri);
+        var queryParams = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(uri.Query);
+
+        if (queryParams.TryGetValue("collectionItemId", out var collectionItemId))
+        {
+            CollectionItemId = collectionItemId;
+        }
+
+        StateHasChanged();
+        base.OnParametersSet();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        Loaded = true;
+        StateHasChanged();
+        if (!_isActiveIndexSet && _stepper != null)
+        {
+            await _stepper.SetActiveIndex(_activeIndex);
+            _isActiveIndexSet = true; //Ensure this is only set once
+            StateHasChanged();
+        }
+
+        await base.OnAfterRenderAsync(firstRender);
+    }
+
+
+
+    private async Task UpdateCollection()
+    {
+        _loading = true;
+        StateHasChanged();
+        if (CollectionId != null)
+        {
+            // we are going to try and update the collection - if an edit has been made...
+
+        }
+        else
+        {
+            try
+            {
+                await Task.Delay(1000);
+                await form.Validate();
+                if (form.IsValid)
+                {
+                    if (_collectionViewModel.Detail?.Length < 4000)
+                    {
+
+                        CollectionViewModel savedCollectionViewModel = await Api.CreateCollection(_collectionViewModel);
+                        if (savedCollectionViewModel != null)
+                        {
+                            CollectionId = savedCollectionViewModel.Id.ToString();
+                            navManager.NavigateTo($"/createtender/{CollectionId}");
+                            _loading = false;
+                            StateHasChanged();
+                        }
+                        else
+                        {
+                            _loading = false;
+                            StateHasChanged();
+                        }
+                    }
+                }
+                else {
+
+                    this._loading = false;
+                }
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Error Creating Collection", Severity.Error);
+                _loading = false;
+                StateHasChanged();
+            }
+        }
+        _loading = false;
+        StateHasChanged();
+    }
+
+    private async Task<bool> CheckChange(StepChangeDirection direction, int targetIndex)
+    {
+        if (_checkValidationBeforeComplete == true)
+        {
+            // Always allow stepping backwards, even if forms are invalid
+            if (direction == StepChangeDirection.Backward)
+            {
+                return false;
+            }
+            if (_stepper?.GetActiveIndex() == 0)
+            {
+                _loading = true;
+                StateHasChanged();
+                await Task.Delay(1000);
+                await _form.Validate();
+                CollectionViewModel collectionViewModel = new CollectionViewModel()
+                    {
+                        Name = Name,
+                        Detail = Instructions,
+                        DataSource = "tender"
+                    };
+                CollectionViewModel savedCollectionViewModel = await Api.CreateCollection(collectionViewModel);
+                if (savedCollectionViewModel != null)
+                {
+                    CollectionId = savedCollectionViewModel.Id.ToString();
+                    navManager.NavigateTo($"/createtender/{CollectionId}/stage2");
+                    _loading = false;
+                    StateHasChanged();
+                    return !_form.IsValid;
+                }
+                else
+                {
+                    return false;
+                }
+            }
+            else if (_stepper?.GetActiveIndex() == 2)
+            {
+                _loading = true;
+                StateHasChanged();
+                await Task.Delay(1000);
+                await _form2.Validate();
+                _loading = false;
+                StateHasChanged();
+                return !_form2.IsValid;
+            }
+            else
+            {
+                return false;
+            }
+        }
+        else
+        {
+            if (direction == StepChangeDirection.Backward)
+            {
+                return false;
+            }
+            if (_stepper?.GetActiveIndex() == 2)
+            {
+                return await RunPlan();
+
+            }
+
+            if (_stepper?.GetActiveIndex() == 0)
+            {
+                await form.Validate();
+                return !form.IsValid;
+            }
+
+            if (targetIndex == 4)
+            {
+                navManager.NavigateTo($"/collection/{CollectionId}");
+            }
+
+            return false;
+        }
+    }
+
+
+    public async Task<bool> RunPlan()
+    {
+
+        try
+        {
+            FlightPlanViewModel flightPlanViewModel = await Api.GetCollectionFlightPlan(Guid.Parse(CollectionId));
+
+            if (flightPlanViewModel.Status != FirebordShared.Model.FlightPlanStatus.Queued && flightPlanViewModel.Status != FirebordShared.Model.FlightPlanStatus.Planning)
+            {
+                try
+                {
+                    await Api.RunPlan(flightPlanViewModel);
+
+                }
+                catch (Exception e) { }
+                await ExecuteStage.Refresh(true);
+                await ExecuteStage.SetupFlightPlanHubConnection();
+
+                return false;
+            }
+            else {
+                Snackbar.Add("Please wait until the flight plan has finsihed planning", Severity.Info);
+                return true;
+            }
+
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            StateHasChanged();
+
+        }
+
+        return false;
+
+    }
+
+    private void StatusChanged(StepStatus status)
+    {
+        Snackbar.Add($"First step {status.ToDescriptionString()}.", Severity.Info);
+    }
+
+    private StepperLocalizedStrings GetLocalizedStrings()
+    {
+        if (_customLocalization == false)
+        {
+            return new StepperLocalizedStrings();
+        }
+        else
+        {
+            return new StepperLocalizedStrings()
+                {
+                    Completed = "Abgeschlossen",
+                    Finish = "Fertig",
+                    Next = "Nächste",
+                    Optional = "Optional",
+                    Previous = "Früher",
+                    Skip = "überspringen",
+                    Skipped = "übersprungen",
+                };
+        }
+    }
+
+    private bool _openHelpDrawer = false;
+    private MarkupString CurrentHelpText = (MarkupString)"Help/Guide text goes here";
+
+    private void ShowHelp(string field)
+    {
+        _openHelpDrawer = true;
+        CurrentHelpText = field switch
+        {
+            "name" => (MarkupString)@"
+                Provide a descriptive name for this collection. The name should clearly reflect the purpose or asset related to this data collection. For example:<br />
+
+                - <strong>Example 1</strong>: <em>Pipeline Inspection Report</em> - Ideal for reports specific to pipeline inspections.<br />
+                - <strong>Example 2</strong>: <em>Safety Compliance Audit</em> - Use this for collections related to safety checks.<br />
+
+                The name appears in various parts of the system, such as reports and search results, to help you quickly identify collections. If you're unsure about naming conventions, refer to our <a href=""https://example.com/naming-guidelines"">naming guidelines</a> for more details.<br /><br />
+            ",
+
+            "instructions" => (MarkupString)@"
+                Detailed instructions ensure consistency in data collection. Outline each step clearly and concisely. Here’s a sample structure for your instructions:<br />
+
+                - <strong>Step 1</strong>: Check and record the pressure levels.<br />
+                - <strong>Step 2</strong>: Take note of any unusual readings and report them.<br />
+                - <strong>Step 3</strong>: Update the system with the collected data.<br /><br />
+
+                Instructions should guide users on precisely what to do and how to report their findings. Need more help with formatting instructions? <a href=""https://example.com/instructions-format"">Click here for the instructions format guide</a>.<br /><br />
+
+                <strong>Tip</strong>: Use simple language and avoid jargon unless it’s specific to the task. Clear instructions reduce errors and ensure consistent data.
+            ",
+
+            "dataSource" => (MarkupString)@"
+                Select the data source most relevant to this collection:<br />
+
+                - <strong>IMS</strong> (ims-pdms-docnumber): Used for document numbers related to IMS data.<br />
+                - <strong>Engineering</strong> (engineering-pdms): Best suited for technical data.<br />
+                - <strong>Tendering</strong> (tender): Ideal for procurement or tender data.<br /><br />
+
+                Each data source aligns with specific data types, and selecting the correct one ensures accurate data management and reporting. Learn more about <a href=""https://example.com/data-sources"">data sources here</a>.<br /><br />
+
+                <strong>Tip</strong>: If you're uncertain about which data source to select, consult with the data management team or refer to the <a href=""https://example.com/data-categorization"">data categorization guidelines</a>.
+            ",
+
+            _ => (MarkupString)@"
+               <strong>General Help</strong><br />
+                Select a field to view detailed help information specific to that input. For general guidance, see our <a href=""https://example.com/user-manual"">User Manual</a> or contact support for assistance.
+            "
+        };
+    }
+
+    public void Dispose()
+    {
+        navManager.LocationChanged -= HandleLocationChanged;
+        StateService.OnStateChange -= StateHasChanged;
+    }
+
+    // Handle changes in the URL
+    private async void HandleLocationChanged(object sender, LocationChangedEventArgs args)
+    {
+        // Check if the query string contains `collectionItemId`
+        var uri = new Uri(navManager.Uri);
+        var queryParams = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(uri.Query);
+
+        if (queryParams.TryGetValue("collectionItemId", out var collectionItemId))
+        {
+            CollectionItemId = collectionItemId;
+            StateHasChanged();
+        }
+    }
+}

@@ -1,0 +1,391 @@
+﻿@using ClairvyntAspireApp.Web.Apis
+@using FirebordShared.Model.Collections
+@using FirebordShared.ViewModel.Collections
+@using FireboardAlpha.State
+@inject ApiClient Api
+@inject NavigationManager navManager
+@inject IDialogService DialogService
+@inject StateService StateService
+@implements IDisposable
+
+<MudStack Style="width: 410px; height: calc(100vh - 80px); overflow-y:auto">
+    <MudBreadcrumbs Items="_breadcrumbs" Style="width: 100%" />
+    @if (_isLoading)
+    {
+        <MudProgressCircular Indeterminate></MudProgressCircular>
+    }
+    else
+    {
+        @if (CollectionId == null || CollectionItemId == null)
+        {
+            <MudButton @onclick="CreateItem" Variant="Variant.Filled" Color="Color.Primary" Size="Size.Large">Create</MudButton>
+        }
+
+        else
+        {
+
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Large" Style="min-height: 40px;" OnClick="CreateNewQuestion"> Add New Question</MudButton>
+
+        }
+        <MudStack Style="width: 400px; height: calc(100vh - 200px); overflow-y:auto" Class="pa-1 " AlignItems="AlignItems.Center">
+            @foreach (var item in CurrentLevelItems)
+            {
+                var notStartedPercentage = (int)(((item.Items - item.InProgressItems - item.CompletedItems) / (double)item.Items) * 100);
+                var inProgressPercentage = (int)((item.InProgressItems / (double)item.Items) * 100);
+                var completedPercentage = (int)((item.CompletedItems / (double)item.Items) * 100);
+
+
+                <MudCard Style="width: 100%;" Elevation="5" class="@(item.Id?.ToString() == QuestionId ? "highlight-card" : "regular-card")">
+                    <MudCardContent>
+                        <MudText Typo="Typo.body1">@item.Name</MudText>
+                        <MudText Typo="Typo.caption" Class="collection-description">@item.Detail</MudText>
+                        <MudText Typo="Typo.caption">
+                            <MudTooltip Text="Last Updated">
+                                <MudButton Style="text-transform:none" StartIcon="@Icons.Material.Filled.AccessTime" Variant="Variant.Text"> @(item.LastUpdatedAtItem != null && @item.LastUpdatedAtItem > @item.UpdatedAt ? @item.LastUpdatedAtItem?.ToString("g") : @item.UpdatedAt.ToString("g")) - @item.LastUpdatedByItemName</MudButton>
+                            </MudTooltip>
+                        </MudText>
+                    </MudCardContent>
+                    <MudCardActions>
+                        <MudStack Style="width: 100%" StretchItems="StretchItems.All">
+
+                            @if (@item.Type == "question")
+                            {
+                                <QuestionPlanStatus QuestionId="@item.Id.ToString()" />
+                            }
+                            <MudStack Row>
+
+                                @if (@item.Type != "question")
+                                {
+
+                                    // <MudText style="margin-top: 12px;" Typo="Typo.body1">@($"{item.CompletedItems}/{item.Items}")</MudText>
+                                    <MudTooltip Text="Good">
+                                        <MudButton Size="Size.Large" Variant="Variant.Text" StartIcon="@Icons.Material.Filled.CheckCircle" Color="Color.Success">@item.CompletedItems</MudButton>
+                                    </MudTooltip>
+                                    <MudTooltip Text="Needs Work">
+                                        <MudButton Size="Size.Large" Variant="Variant.Text" StartIcon="@Icons.Material.Filled.Flag" Color="Color.Error">@item.NeedsWork</MudButton>
+                                    </MudTooltip>
+                                    <MudTooltip Text="Not Started">
+                                        <MudButton Size="Size.Large" Variant="Variant.Text" StartIcon="@Icons.Material.Outlined.Circle" Color="Color.Primary">@item.InProgressItems</MudButton>
+                                    </MudTooltip>
+
+                                }
+                            </MudStack>
+                            <MudStack Row>
+                                <MudSpacer />
+                                @if (item.Type.ToLower() == "collection")
+                                {
+                                    <CollectionFlightPlanIcon CollectionId="@item.Id.ToString()" />
+                                    <MudButton Color="Color.Primary" Variant="Variant.Filled" Disabled="StateService.AppState.IsEditing" StartIcon="@Icons.Material.Filled.Edit" Href="@($"/createTender/{item.Id}/stage2")">Edit</MudButton>
+                                }
+                                else if (item.Type.ToLower() == "question")
+                                {
+
+                                    if (item.QuestionCompletionStatus == QuestionCompletionStatus.NeedsWork)
+                                    {
+                                        <MudIconButton Disabled="StateService.AppState.IsEditing" Icon="@Icons.Material.Filled.Flag" Color="Color.Error" OnClick="() => SetQuestionStatus(item.Id.GetValueOrDefault(),QuestionCompletionStatus.NotSet)" />
+                                    }
+                                    else
+                                    {
+
+                                        <MudIconButton Disabled="StateService.AppState.IsEditing" Icon="@Icons.Material.Filled.OutlinedFlag" OnClick="() => SetQuestionStatus(item.Id.GetValueOrDefault(),QuestionCompletionStatus.NeedsWork)" />
+                                    }
+
+                                    if (item.QuestionCompletionStatus == QuestionCompletionStatus.Good)
+
+                                    {
+
+                                        <MudIconButton Disabled="StateService.AppState.IsEditing" Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" OnClick="() => SetQuestionStatus(item.Id.GetValueOrDefault(),QuestionCompletionStatus.NotSet)" />
+                                    }
+                                    else
+                                    {
+
+                                        <MudIconButton Disabled="StateService.AppState.IsEditing" Icon="@Icons.Material.Filled.CheckCircleOutline" OnClick="() => SetQuestionStatus(item.Id.GetValueOrDefault(),QuestionCompletionStatus.Good)" />
+                                    }
+
+                                }
+                                <MudButton Disabled="StateService.AppState.IsEditing" Size="Size.Small" Variant="Variant.Filled" Color="Color.Error" StartIcon="@Icons.Material.Filled.Delete" @onclick="() => OnDeleteClick(item)">Delete</MudButton>
+                                @* <MudIconButton Disabled="StateService.AppState.IsEditing" Icon="@Icons.Material.Filled.Check" />*@
+                                <MudButton Disabled="StateService.AppState.IsEditing" Variant="Variant.Filled" Color="Color.Primary" @onclick="() => OnCardClick(item)">View</MudButton>
+                            </MudStack>
+                        </MudStack>
+                    </MudCardActions>
+                </MudCard>
+            }
+        </MudStack>
+    }
+    <TextboxDialog />
+</MudStack>
+
+@code {
+    [Parameter]
+    public Func<bool>? ShouldReRender { get; set; }
+
+    [Parameter]
+    public QuestionViewModel Value { get; set; }
+
+    [Parameter]
+    public string CollectionId { get; set; }
+
+    [Parameter]
+    public string CollectionItemId { get; set; }
+
+    [Parameter]
+    public string QuestionId { get; set; }
+
+    [Parameter]
+    public EventCallback<string> ValueChanged { get; set; }
+
+    private List<MenuItemViewModel> CurrentLevelItems { get; set; } = new();
+    private List<BreadcrumbItem> _breadcrumbs = new List<BreadcrumbItem>();
+
+    private bool _isLoading = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        BreadcrumbItem bci = new BreadcrumbItem("Home", href: "/", icon: Icons.Material.Filled.Home);
+        _breadcrumbs.Add(bci);
+        await SetupItems();
+        navManager.LocationChanged += HandleLocationChanged;
+        StateService.OnStateChange += StateHasChanged;
+    }
+    // Define your async event handler method
+    private async void HandleLocationChanged(object sender, LocationChangedEventArgs args)
+    {
+        await InvokeAsync(async () =>
+        {
+            await SetupItems();
+            StateHasChanged();
+        });
+
+        // Your asynchronous logic here
+    }
+
+    private async Task SetQuestionStatus(Guid questionId, QuestionCompletionStatus status)
+    {
+        try
+        {
+            await Api.SetQuestionStatus(questionId, status);
+            await SetupItems();
+        }
+        catch (Exception e)
+        {
+
+        }
+    }
+
+    private async Task SetupItems()
+    {
+        // _isLoading = true;
+        StateHasChanged();
+        _breadcrumbs = new List<BreadcrumbItem>();
+        _breadcrumbs.Add(new BreadcrumbItem("Home", href: "/", icon: Icons.Material.Filled.Home));
+        if (CollectionId == null && CollectionItemId == null)
+        {
+            CurrentLevelItems = await Api.GetCollectionMenuItemHeaders();
+        }
+        else if (CollectionId != null && CollectionItemId == null)
+        {
+            CollectionViewModel collection = await Api.GetCollectionById(CollectionId);
+            _breadcrumbs.Add(new BreadcrumbItem(collection.Name, href: $"/collection/{CollectionId}"));
+            CurrentLevelItems = await Api.GetCollectionItemMenuItemHeaders(Guid.Parse(CollectionId));
+        }
+        else if (CollectionId != null && CollectionItemId != null)
+        {
+            CollectionViewModel collection = await Api.GetCollectionById(CollectionId);
+            CollectionItemViewModel collectionItem = await Api.GetCollectionItem(CollectionItemId);
+            _breadcrumbs.Add(new BreadcrumbItem(collection.Name, href: $"/collection/{CollectionId}"));
+            _breadcrumbs.Add(new BreadcrumbItem(collectionItem.Name, href: $"/collection/{CollectionId}/collectionitem/{CollectionItemId}"));
+            CurrentLevelItems = await Api.GetQuestionMenuItemHeaders(Guid.Parse(CollectionItemId));
+        }
+        //  _isLoading = false;
+        StateHasChanged();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await SetupItems();
+        }
+    }
+
+    private async Task OnDeleteClick(MenuItemViewModel item)
+    {
+        string? questionText = null;
+        var parameters = new DialogParameters<ConfirmDialog>
+        {
+         { x => x.Title, "Delete" },
+         { x => x.Message, "Are you sure you want to delete this?" }
+        };
+
+        DialogOptions maxWidthOptions = new() { MaxWidth = MaxWidth.Medium, FullWidth = false };
+        var dialog = await DialogService.ShowAsync<ConfirmDialog>("Delete", parameters, maxWidthOptions);
+        var result = await dialog.Result;
+
+        if (result.Canceled)
+        {
+            return;
+
+        }
+
+        try
+        {
+
+            if (item.Type.ToLower() == "collection")
+            {
+                await Api.DeleteCollection(item.Id.GetValueOrDefault().ToString());
+
+            }
+            else if (item.Type.ToLower() == "collectionitem")
+            {
+                await Api.DeleteCollectionItem(item.Id.GetValueOrDefault().ToString());
+            }
+            else if (item.Type.ToLower() == "question")
+            {
+                await Api.DeleteQuestion(item.Id.GetValueOrDefault().ToString());
+            }
+
+            await SetupItems();
+            StateHasChanged();
+        }
+        catch (Exception e)
+
+        {
+
+        }
+    }
+
+    private async Task OnCardClick(MenuItemViewModel item)
+    {
+        if (item.Type.ToLower() == "collection")
+        {
+            //CurrentLevelItems = await Api.GetCollectionItemMenuItemHeaders(item.Id.Value);
+            navManager.NavigateTo($"collection/{item.Id}");
+
+
+        }
+        else if (item.Type.ToLower() == "collectionitem")
+        {
+            //CurrentLevelItems = await Api.GetQuestionMenuItemHeaders(item.Id.Value);
+            navManager.NavigateTo($"collection/{CollectionId}/collectionitem/{item.Id.Value}");
+        }
+        else if (item.Type.ToLower() == "question")
+        {
+            //await ValueChanged.InvokeAsync(item.Id.Value.ToString());
+            navManager.NavigateTo($"collection/{CollectionId}/collectionItem/{CollectionItemId}/question/{item.Id.Value}");
+        }
+        StateHasChanged();
+    }
+
+    private async Task ShowCreateItemDialog()
+    {
+
+
+    }
+
+    private async Task CreateItem()
+    {
+        // navigate to createTender
+        navManager.NavigateTo("/createTender", true);
+
+        // string collectionType = "COLLECTION";
+
+        // if (CollectionId == null && CollectionItemId == null)
+        // {
+        //     collectionType = "COLLECTION";
+        // }
+        // else if (CollectionId != null && CollectionItemId == null)
+        // {
+        //     collectionType = "COLLECTIONITEM";
+        // }
+
+        // var parameters = new DialogParameters<CollectionCreationDialog> { { x => x.CollectionType, collectionType } };
+        // DialogOptions maxWidthOptions = new() { MaxWidth = MaxWidth.ExtraExtraLarge, FullWidth = true };
+        // var dialog = await DialogService.ShowAsync<CollectionCreationDialog>("Create", parameters, maxWidthOptions);
+        // var result = await dialog.Result;
+
+        // if (result.Canceled)
+        //     return;
+
+
+        // dynamic creationObject = result.Data;
+
+
+        // if (CollectionId == null && CollectionItemId == null)
+        // {
+        //     CollectionViewModel collectionViewModel = new CollectionViewModel()
+
+        //         {
+        //             Name = creationObject.Name,
+        //             Detail = creationObject.Instructions,
+        //             DataSource = creationObject.DataSource
+
+        //         };
+        //     await Api.CreateCollection(collectionViewModel);
+        // }
+        // else if (CollectionId != null && CollectionItemId == null)
+        // {
+        //     CollectionItemViewModel collectionItemViewModel = new CollectionItemViewModel()
+        //         {
+        //             Name = creationObject.Name,
+        //             Detail = creationObject.Instructions,
+        //             CollectionId = Guid.Parse(CollectionId)
+        //         };
+        //     await Api.CreateCollectionItem(collectionItemViewModel);
+        // }
+
+        // await SetupItems();
+
+
+    }
+
+    // Create a new question
+    private async Task CreateNewQuestion()
+    {
+        string? questionText = null;
+        var parameters = new DialogParameters<TextboxDialog>
+        {
+         { x => x.Title, "Add Question" },
+         { x => x.Message, "Please add the text for the question" }
+        };
+
+        DialogOptions maxWidthOptions = new() { MaxWidth = MaxWidth.ExtraExtraLarge, FullWidth = true };
+        var dialog = await DialogService.ShowAsync<TextboxDialog>("Add Question", parameters, maxWidthOptions);
+        var result = await dialog.Result;
+
+        if (!result.Canceled)
+        {
+            var resultObject = result.Data;
+            questionText = resultObject.ToString();
+            StateHasChanged();
+        }
+
+
+        QuestionViewModel selectedQuestion = new() { Id = Guid.NewGuid(), Text = questionText };
+        selectedQuestion.CollectionItemId = Guid.Parse(CollectionItemId);
+        selectedQuestion = await Api.CreateQuestion(selectedQuestion);
+        await SetupItems();
+        StateHasChanged();
+    }
+
+    public void Dispose()
+    {
+        navManager.LocationChanged -= HandleLocationChanged;
+        StateService.OnStateChange -= StateHasChanged;
+    }
+}
+
+<style>
+    .highlight-card {
+        border-color: white;
+        border-style: solid;
+        border-width: medium;
+    }
+
+    .collection-description {
+        max-height: 100px;
+        text-overflow: ellipsis;
+        overflow: hidden;
+        display: -webkit-box;
+    }
+</style>
